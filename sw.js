@@ -1,6 +1,6 @@
 // ── MISSION SCHEDULE — SERVICE WORKER ──
 // Caches app shell for offline use. Bump CACHE_VERSION to force an update.
-const CACHE_VERSION = "mission-v1";
+const CACHE_VERSION = "mission-v2";
 const APP_SHELL = [
   "./",
   "./index.html",

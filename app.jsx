@@ -103,8 +103,30 @@ async function storageSet(key, value) {
   }
 }
 
+// ── MOBILE DETECTION HOOK ──
+// Breakpoint at 768px: phones and small tablets get mobile UI
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const handler = (e) => setIsMobile(e.matches);
+    if (mq.addEventListener) mq.addEventListener("change", handler);
+    else mq.addListener(handler); // Safari fallback
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", handler);
+      else mq.removeListener(handler);
+    };
+  }, []);
+  return isMobile;
+}
+
 // ── MAIN APP COMPONENT ──
 function JobTracker() {
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
@@ -301,29 +323,61 @@ function JobTracker() {
     <div style={styles.app}>
       <style>{globalCss}</style>
       <Header
+        isMobile={isMobile}
         saveState={saveState}
         onExport={exportJson}
         onReset={resetToSeed}
         onNewJob={() => setEditingJob({ __new: true, date: fmtDate(new Date()), day: dayAbbr(new Date()), crew: "BRIAN", flag: "" })}
+        onOpenDrawer={() => setDrawerOpen(true)}
         totalJobs={jobs.length}
       />
 
-      <div style={styles.mainLayout}>
-        <Sidebar
-          crewFilter={crewFilter}
-          flagFilter={flagFilter}
-          search={search}
-          onSearchChange={setSearch}
-          onToggleCrew={toggleCrew}
-          onToggleFlag={toggleFlag}
-          onClearFilters={clearFilters}
-          stats={stats}
-          weeksToShow={weeksToShow}
-          setWeeksToShow={setWeeksToShow}
-        />
+      <div style={isMobile ? styles.mainLayoutMobile : styles.mainLayout}>
+        {/* Desktop: inline sidebar. Mobile: drawer overlay */}
+        {!isMobile && (
+          <Sidebar
+            isMobile={false}
+            crewFilter={crewFilter}
+            flagFilter={flagFilter}
+            search={search}
+            onSearchChange={setSearch}
+            onToggleCrew={toggleCrew}
+            onToggleFlag={toggleFlag}
+            onClearFilters={clearFilters}
+            stats={stats}
+            weeksToShow={weeksToShow}
+            setWeeksToShow={setWeeksToShow}
+          />
+        )}
 
-        <div style={styles.calendarWrapper}>
+        {isMobile && drawerOpen && (
+          <>
+            <div style={styles.drawerBackdrop} onClick={() => setDrawerOpen(false)} />
+            <div style={styles.drawerPanel}>
+              <div style={styles.drawerHeader}>
+                <div style={styles.drawerTitle}>FILTERS & VIEW</div>
+                <button style={styles.modalClose} onClick={() => setDrawerOpen(false)}><X size={20} /></button>
+              </div>
+              <Sidebar
+                isMobile={true}
+                crewFilter={crewFilter}
+                flagFilter={flagFilter}
+                search={search}
+                onSearchChange={setSearch}
+                onToggleCrew={toggleCrew}
+                onToggleFlag={toggleFlag}
+                onClearFilters={clearFilters}
+                stats={stats}
+                weeksToShow={weeksToShow}
+                setWeeksToShow={setWeeksToShow}
+              />
+            </div>
+          </>
+        )}
+
+        <div style={isMobile ? styles.calendarWrapperMobile : styles.calendarWrapper}>
           <WeekNav
+            isMobile={isMobile}
             viewStart={viewStart}
             weeksToShow={weeksToShow}
             onShift={shiftWeeks}
@@ -334,6 +388,7 @@ function JobTracker() {
           {weeks.map((week, wi) => (
             <WeekBlock
               key={wi}
+              isMobile={isMobile}
               week={week}
               jobsByDate={jobsByDate}
               jobPassesFilters={jobPassesFilters}
@@ -345,8 +400,22 @@ function JobTracker() {
         </div>
       </div>
 
+      {/* Floating Action Buttons on mobile */}
+      {isMobile && (
+        <div style={styles.fabStack}>
+          <button
+            style={{ ...styles.fab, ...styles.fabPrimary }}
+            onClick={() => setEditingJob({ __new: true, date: fmtDate(new Date()), day: dayAbbr(new Date()), crew: "BRIAN", flag: "" })}
+            title="Add job"
+          >
+            <Plus size={22} />
+          </button>
+        </div>
+      )}
+
       {editingJob && (
         <EditJobModal
+          isMobile={isMobile}
           job={editingJob}
           onSave={(job) => { upsertJob(job); setEditingJob(null); }}
           onDelete={(job) => { deleteJob(job); setEditingJob(null); }}
@@ -356,6 +425,7 @@ function JobTracker() {
 
       {reschedulingJob && (
         <RescheduleModal
+          isMobile={isMobile}
           job={reschedulingJob}
           jobsByDate={jobsByDate}
           onConfirm={(newDate, reason) => { rescheduleJob(reschedulingJob, newDate, reason); setReschedulingJob(null); }}
@@ -367,7 +437,8 @@ function JobTracker() {
 }
 
 // ── HEADER ──
-function Header({ saveState, onExport, onReset, onNewJob, totalJobs }) {
+function Header({ isMobile, saveState, onExport, onReset, onNewJob, onOpenDrawer, totalJobs }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const saveLabel = {
     idle: "",
     saving: "Saving…",
@@ -376,6 +447,43 @@ function Header({ saveState, onExport, onReset, onNewJob, totalJobs }) {
   }[saveState];
   const saveColor = { saving: "#79c0ff", saved: "#3fb950", error: "#ff7b72", idle: "transparent" }[saveState];
 
+  // ── MOBILE HEADER ──
+  if (isMobile) {
+    return (
+      <header style={styles.headerMobile}>
+        <button style={styles.hamburger} onClick={onOpenDrawer} aria-label="Open menu">
+          <span /><span /><span />
+        </button>
+        <div style={styles.logoMobile}>
+          MISSION<span style={{ color: "#f78166" }}>·</span>DIV
+        </div>
+        <span style={{ ...styles.saveIndicatorMobile, color: saveColor }}>{saveLabel || `${totalJobs}`}</span>
+        <div style={{ position: "relative" }}>
+          <button style={styles.iconBtn} onClick={() => setMenuOpen(v => !v)} aria-label="More actions">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
+          {menuOpen && (
+            <>
+              <div style={styles.menuBackdrop} onClick={() => setMenuOpen(false)} />
+              <div style={styles.menuDropdown}>
+                <button style={styles.menuItem} onClick={() => { onNewJob(); setMenuOpen(false); }}>
+                  <Plus size={14} /> New job
+                </button>
+                <button style={styles.menuItem} onClick={() => { onExport(); setMenuOpen(false); }}>
+                  <Download size={14} /> Export JSON
+                </button>
+                <button style={{ ...styles.menuItem, color: "#ff7b72" }} onClick={() => { onReset(); setMenuOpen(false); }}>
+                  <RefreshCw size={14} /> Reset to imported
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </header>
+    );
+  }
+
+  // ── DESKTOP HEADER ──
   return (
     <header style={styles.header}>
       <div style={styles.logo}>
@@ -408,23 +516,23 @@ function Header({ saveState, onExport, onReset, onNewJob, totalJobs }) {
 }
 
 // ── SIDEBAR ──
-function Sidebar({ crewFilter, flagFilter, search, onSearchChange, onToggleCrew, onToggleFlag, onClearFilters, stats, weeksToShow, setWeeksToShow }) {
+function Sidebar({ isMobile, crewFilter, flagFilter, search, onSearchChange, onToggleCrew, onToggleFlag, onClearFilters, stats, weeksToShow, setWeeksToShow }) {
   const hasFilters = crewFilter.size > 0 || flagFilter.size > 0 || search.length > 0;
 
   return (
-    <aside style={styles.sidebar}>
+    <aside style={isMobile ? styles.sidebarMobile : styles.sidebar}>
       <div style={styles.sidebarSection}>
         <div style={styles.sidebarLabel}>Search</div>
         <div style={{ position: "relative" }}>
-          <Search size={12} style={{ position: "absolute", left: 8, top: 8, color: "#6e7681" }} />
+          <Search size={isMobile ? 14 : 12} style={{ position: "absolute", left: 10, top: isMobile ? 12 : 8, color: "#6e7681" }} />
           <input
-            style={styles.searchInput}
+            style={isMobile ? styles.searchInputMobile : styles.searchInput}
             placeholder="WO, address, circuit…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
           />
           {search && (
-            <button onClick={() => onSearchChange("")} style={styles.searchClear}><X size={12} /></button>
+            <button onClick={() => onSearchChange("")} style={styles.searchClear}><X size={14} /></button>
           )}
         </div>
       </div>
@@ -440,6 +548,7 @@ function Sidebar({ crewFilter, flagFilter, search, onSearchChange, onToggleCrew,
               onClick={() => onToggleCrew(c)}
               style={{
                 ...styles.filterBtn,
+                ...(isMobile ? styles.filterBtnMobile : {}),
                 ...(active ? { background: style.border, color: "#0d1117", borderColor: style.border, fontWeight: 700 } : {}),
               }}
             >
@@ -461,10 +570,11 @@ function Sidebar({ crewFilter, flagFilter, search, onSearchChange, onToggleCrew,
               onClick={() => onToggleFlag(f)}
               style={{
                 ...styles.filterBtn,
+                ...(isMobile ? styles.filterBtnMobile : {}),
                 ...(active ? { background: style.border, color: "#0d1117", borderColor: style.border, fontWeight: 700 } : {}),
               }}
             >
-              <span style={{ fontSize: 10, marginRight: 4 }}>{style.icon}</span>
+              <span style={{ fontSize: isMobile ? 12 : 10, marginRight: 4 }}>{style.icon}</span>
               {f}
             </button>
           );
@@ -472,7 +582,7 @@ function Sidebar({ crewFilter, flagFilter, search, onSearchChange, onToggleCrew,
       </div>
 
       {hasFilters && (
-        <button onClick={onClearFilters} style={{ ...styles.filterBtn, color: "#ff7b72", borderColor: "#ff7b72" }}>
+        <button onClick={onClearFilters} style={{ ...styles.filterBtn, ...(isMobile ? styles.filterBtnMobile : {}), color: "#ff7b72", borderColor: "#ff7b72" }}>
           ✕ Clear all filters
         </button>
       )}
@@ -486,6 +596,7 @@ function Sidebar({ crewFilter, flagFilter, search, onSearchChange, onToggleCrew,
               onClick={() => setWeeksToShow(n)}
               style={{
                 ...styles.filterBtn,
+                ...(isMobile ? styles.filterBtnMobile : {}),
                 flex: 1,
                 textAlign: "center",
                 ...(weeksToShow === n ? { background: "#79c0ff", color: "#0d1117", borderColor: "#79c0ff", fontWeight: 700 } : {}),
@@ -516,8 +627,25 @@ function Sidebar({ crewFilter, flagFilter, search, onSearchChange, onToggleCrew,
 }
 
 // ── WEEK NAV ──
-function WeekNav({ viewStart, weeksToShow, onShift, onToday, onFirstJob }) {
+function WeekNav({ isMobile, viewStart, weeksToShow, onShift, onToday, onFirstJob }) {
   const end = addDays(viewStart, weeksToShow * 7 - 1);
+  if (isMobile) {
+    return (
+      <div style={styles.weekNavMobile}>
+        <div style={styles.weekNavMobileRow}>
+          <button style={styles.navBtnMobile} onClick={() => onShift(-1)} aria-label="Previous week"><ChevronLeft size={18} /></button>
+          <div style={styles.weekRangeMobile}>
+            {shortMonthDay(viewStart)} — {shortMonthDay(end)}
+          </div>
+          <button style={styles.navBtnMobile} onClick={() => onShift(1)} aria-label="Next week"><ChevronRight size={18} /></button>
+        </div>
+        <div style={styles.weekNavMobileRow}>
+          <button style={{ ...styles.navBtnMobile, flex: 1 }} onClick={onToday}>Today</button>
+          <button style={{ ...styles.navBtnMobile, flex: 1 }} onClick={onFirstJob}>Jump to data</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={styles.weekNav}>
       <button style={styles.navBtn} onClick={() => onShift(-1)}><ChevronLeft size={14} /> Prev</button>
@@ -532,12 +660,16 @@ function WeekNav({ viewStart, weeksToShow, onShift, onToday, onFirstJob }) {
 }
 
 // ── WEEK BLOCK ──
-function WeekBlock({ week, jobsByDate, jobPassesFilters, onEditJob, onRescheduleJob, onAddJobAt }) {
+function WeekBlock({ isMobile, week, jobsByDate, jobPassesFilters, onEditJob, onRescheduleJob, onAddJobAt }) {
   const weekLabel = `WEEK OF ${shortMonthDay(week.start).toUpperCase()}`;
+
+  // Mobile: skip days that have no jobs and no active filter; or always show but compactly?
+  // Decision: always show all 7 days so the schedule structure is clear, but stack vertically.
+
   return (
     <div style={styles.weekBlock}>
       <div style={styles.weekLabel}>{weekLabel}</div>
-      <div style={styles.weekGrid}>
+      <div style={isMobile ? styles.weekStack : styles.weekGrid}>
         {week.days.map(d => {
           const dateStr = fmtDate(d);
           const dayJobs = (jobsByDate[dateStr] || []).filter(jobPassesFilters);
@@ -548,25 +680,30 @@ function WeekBlock({ week, jobsByDate, jobPassesFilters, onEditJob, onReschedule
 
           return (
             <div key={dateStr} style={{
-              ...styles.dayCol,
+              ...(isMobile ? styles.dayColMobile : styles.dayCol),
               ...(isWeekend ? styles.dayColWeekend : {}),
               ...(isToday ? styles.dayColToday : {}),
             }}>
-              <div style={styles.dayHeader}>
-                <div style={styles.dayName}>{dayAbbr(d)}</div>
-                <div style={styles.dayDate}>{d.getMonth() + 1}/{d.getDate()}</div>
+              <div style={isMobile ? styles.dayHeaderMobile : styles.dayHeader}>
+                <div style={isMobile ? styles.dayNameMobile : styles.dayName}>{dayAbbr(d)}</div>
+                <div style={isMobile ? styles.dayDateMobile : styles.dayDate}>{d.getMonth() + 1}/{d.getDate()}</div>
+                {isMobile && dayJobs.length > 0 && (
+                  <div style={styles.dayCountMobile}>{dayJobs.length} {dayJobs.length === 1 ? "job" : "jobs"}</div>
+                )}
                 <button
-                  style={styles.dayAddBtn}
+                  style={isMobile ? styles.dayAddBtnMobile : styles.dayAddBtn}
                   onClick={() => onAddJobAt(dateStr)}
                   title="Add job on this day"
+                  aria-label="Add job"
                 >
-                  <Plus size={11} />
+                  <Plus size={isMobile ? 16 : 11} />
                 </button>
               </div>
-              <div style={styles.dayBody}>
+              <div style={isMobile ? styles.dayBodyMobile : styles.dayBody}>
                 {dayJobs.map((j, ji) => (
                   <JobCard
                     key={(j._id || j.wo) + "_" + ji}
+                    isMobile={isMobile}
                     job={j}
                     onEdit={() => onEditJob(j)}
                     onReschedule={() => onRescheduleJob(j)}
@@ -588,7 +725,7 @@ function WeekBlock({ week, jobsByDate, jobPassesFilters, onEditJob, onReschedule
 }
 
 // ── JOB CARD ──
-function JobCard({ job, onEdit, onReschedule }) {
+function JobCard({ isMobile, job, onEdit, onReschedule }) {
   const crewStyle = CREW_STYLES[job.crew] || CREW_STYLES[""];
   const flagStyle = job.flag ? FLAG_STYLES[job.flag] : null;
 
@@ -602,32 +739,33 @@ function JobCard({ job, onEdit, onReschedule }) {
   return (
     <div
       style={{
-        ...styles.jobCard,
+        ...(isMobile ? styles.jobCardMobile : styles.jobCard),
         background: cardBg,
         borderLeftColor: cardBorder,
         color: cardText,
         opacity: isLite ? 0.75 : 1,
       }}
       onClick={onEdit}
-      title="Click to edit"
+      title="Tap to edit"
     >
       <div style={styles.jobCardTop}>
-        <span style={{ ...styles.jobCrew, color: cardText }}>
+        <span style={{ ...(isMobile ? styles.jobCrewMobile : styles.jobCrew), color: cardText }}>
           {flagStyle && <span style={{ marginRight: 4 }}>{flagStyle.icon}</span>}
           {job.flag || job.crew || "—"}
         </span>
         <button
-          style={styles.jobMoveBtn}
+          style={isMobile ? styles.jobMoveBtnMobile : styles.jobMoveBtn}
           onClick={(e) => { e.stopPropagation(); onReschedule(); }}
           title="Reschedule"
+          aria-label="Reschedule"
         >
           ↔
         </button>
       </div>
-      {job.wo && <div style={styles.jobWo}>WO {job.wo}</div>}
-      {job.addr && <div style={styles.jobAddr}>{job.addr}</div>}
-      {job.outage && <div style={styles.jobMeta}>⏱ {job.outage}</div>}
-      {job.scope && <div style={styles.jobScope}>{truncate(job.scope, 80)}</div>}
+      {job.wo && <div style={isMobile ? styles.jobWoMobile : styles.jobWo}>WO {job.wo}</div>}
+      {job.addr && <div style={isMobile ? styles.jobAddrMobile : styles.jobAddr}>{job.addr}</div>}
+      {job.outage && <div style={isMobile ? styles.jobMetaMobile : styles.jobMeta}>⏱ {job.outage}</div>}
+      {job.scope && <div style={isMobile ? styles.jobScopeMobile : styles.jobScope}>{truncate(job.scope, isMobile ? 120 : 80)}</div>}
       {job._rescheduleHistory && job._rescheduleHistory.length > 0 && (
         <div style={styles.jobRescheduled}>
           ↔ moved {job._rescheduleHistory.length}×
@@ -643,7 +781,7 @@ function truncate(s, n) {
 }
 
 // ── EDIT MODAL ──
-function EditJobModal({ job, onSave, onDelete, onClose }) {
+function EditJobModal({ isMobile, job, onSave, onDelete, onClose }) {
   const [form, setForm] = useState({
     date: job.date || "",
     crew: job.crew || "BRIAN",
@@ -691,8 +829,8 @@ function EditJobModal({ job, onSave, onDelete, onClose }) {
   }
 
   return (
-    <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+    <div style={isMobile ? styles.modalOverlayMobile : styles.modalOverlay} onClick={onClose}>
+      <div style={isMobile ? styles.modalMobile : styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalHeader}>
           <div>
             <div style={styles.modalTitle}>
@@ -702,7 +840,7 @@ function EditJobModal({ job, onSave, onDelete, onClose }) {
               {job.__new ? "Add a new scheduled job" : `WO ${job.wo || "—"} · ${job.date}`}
             </div>
           </div>
-          <button style={styles.modalClose} onClick={onClose}><X size={18} /></button>
+          <button style={styles.modalClose} onClick={onClose}><X size={20} /></button>
         </div>
 
         <div style={styles.modalBody}>
@@ -713,7 +851,7 @@ function EditJobModal({ job, onSave, onDelete, onClose }) {
           )}
 
           <div style={styles.formSection}>Scheduling</div>
-          <div style={styles.formRow}>
+          <div style={styles.formRow} className="form-row-stack">
             <Field label="Date (MM/DD/YY)">
               <input style={styles.input} value={form.date} onChange={e => update("date", e.target.value)} placeholder="04/23/26" />
             </Field>
@@ -724,7 +862,7 @@ function EditJobModal({ job, onSave, onDelete, onClose }) {
               </select>
             </Field>
           </div>
-          <div style={styles.formRow}>
+          <div style={styles.formRow} className="form-row-stack">
             <Field label="Status / Flag">
               <select style={styles.input} value={form.flag} onChange={e => update("flag", e.target.value)}>
                 <option value="">— None —</option>
@@ -751,7 +889,7 @@ function EditJobModal({ job, onSave, onDelete, onClose }) {
           </Field>
 
           <div style={styles.formSection}>References</div>
-          <div style={styles.formRow}>
+          <div style={styles.formRow} className="form-row-stack">
             <Field label="Traffic Control">
               <input style={styles.input} value={form.tc} onChange={e => update("tc", e.target.value)} placeholder="YES 0800" />
             </Field>
@@ -759,7 +897,7 @@ function EditJobModal({ job, onSave, onDelete, onClose }) {
               <input style={styles.input} value={form.circuit} onChange={e => update("circuit", e.target.value)} placeholder="26-0033512" />
             </Field>
           </div>
-          <div style={styles.formRow}>
+          <div style={styles.formRow} className="form-row-stack">
             <Field label="Notification #">
               <input style={styles.input} value={form.notif} onChange={e => update("notif", e.target.value)} placeholder="103437389" />
             </Field>
@@ -812,7 +950,7 @@ function Field({ label, children }) {
 }
 
 // ── RESCHEDULE MODAL ──
-function RescheduleModal({ job, jobsByDate, onConfirm, onClose }) {
+function RescheduleModal({ isMobile, job, jobsByDate, onConfirm, onClose }) {
   const initialDate = parseDate(job.date) || new Date();
   const [viewMonth, setViewMonth] = useState(new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(null);
@@ -1513,18 +1651,444 @@ const styles = {
     fontSize: 14,
     lineHeight: 0.3,
   },
+
+  // ═══════════════════════════════════════════════════
+  // ── MOBILE-SPECIFIC STYLES ──
+  // ═══════════════════════════════════════════════════
+
+  // Header (mobile)
+  headerMobile: {
+    background: "#161b22",
+    borderBottom: "1px solid #30363d",
+    padding: "10px 12px",
+    paddingTop: "calc(10px + env(safe-area-inset-top))",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    minHeight: 52,
+  },
+  logoMobile: {
+    fontFamily: "'Barlow Condensed', sans-serif",
+    fontWeight: 800,
+    fontSize: 15,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#e6edf3",
+    flex: 1,
+  },
+  saveIndicatorMobile: {
+    fontSize: 10,
+    fontFamily: "'JetBrains Mono', monospace",
+    fontWeight: 600,
+    letterSpacing: 0.5,
+    whiteSpace: "nowrap",
+    minWidth: 28,
+    textAlign: "right",
+  },
+  hamburger: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    width: 40,
+    height: 40,
+    padding: "10px 8px",
+    background: "transparent",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    padding: 0,
+    background: "transparent",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    color: "#c9d1d9",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "transparent",
+    zIndex: 200,
+  },
+  menuDropdown: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    right: 0,
+    background: "#161b22",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    minWidth: 180,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    zIndex: 201,
+    display: "flex",
+    flexDirection: "column",
+    padding: 4,
+  },
+  menuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    background: "transparent",
+    border: "none",
+    color: "#c9d1d9",
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 500,
+    letterSpacing: 0.5,
+    padding: "10px 12px",
+    textAlign: "left",
+    cursor: "pointer",
+    borderRadius: 4,
+    textTransform: "uppercase",
+  },
+
+  // Main layout (mobile)
+  mainLayoutMobile: {
+    display: "block",
+    minHeight: "calc(100vh - 52px)",
+  },
+  calendarWrapperMobile: {
+    padding: "12px 12px 80px 12px", // extra bottom for FAB
+    maxWidth: "100%",
+  },
+
+  // Drawer (mobile sidebar)
+  drawerBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.65)",
+    backdropFilter: "blur(3px)",
+    zIndex: 300,
+  },
+  drawerPanel: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: "82%",
+    maxWidth: 320,
+    background: "#161b22",
+    borderRight: "1px solid #30363d",
+    zIndex: 301,
+    display: "flex",
+    flexDirection: "column",
+    paddingTop: "env(safe-area-inset-top)",
+    paddingBottom: "env(safe-area-inset-bottom)",
+    overflowY: "auto",
+    animation: "slideInLeft 0.22s ease-out",
+  },
+  drawerHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 14px",
+    borderBottom: "1px solid #30363d",
+    background: "#1c2128",
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
+  },
+  drawerTitle: {
+    fontFamily: "'Barlow Condensed', sans-serif",
+    fontSize: 14,
+    fontWeight: 700,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    color: "#e6edf3",
+  },
+
+  sidebarMobile: {
+    width: "100%",
+    padding: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+  },
+  searchInputMobile: {
+    width: "100%",
+    background: "#0d1117",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    color: "#e6edf3",
+    padding: "10px 10px 10px 32px",
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', monospace",
+    outline: "none",
+  },
+  filterBtnMobile: {
+    fontSize: 13,
+    padding: "10px 12px",
+    minHeight: 40,
+  },
+
+  // Week nav (mobile)
+  weekNavMobile: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottom: "1px solid #30363d",
+  },
+  weekNavMobileRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  navBtnMobile: {
+    background: "transparent",
+    border: "1px solid #30363d",
+    color: "#c9d1d9",
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 500,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    padding: "10px 12px",
+    borderRadius: 6,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minHeight: 40,
+    minWidth: 40,
+  },
+  weekRangeMobile: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "'Barlow Condensed', sans-serif",
+    fontSize: 14,
+    fontWeight: 700,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#c9d1d9",
+  },
+
+  // Week stack (mobile)
+  weekStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+
+  // Day col (mobile)
+  dayColMobile: {
+    background: "#161b22",
+    border: "1px solid #30363d",
+    borderRadius: 8,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  dayHeaderMobile: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 12px",
+    borderBottom: "1px solid #30363d",
+    background: "#1c2128",
+  },
+  dayNameMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#c9d1d9",
+  },
+  dayDateMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    color: "#8b949e",
+  },
+  dayCountMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 10,
+    color: "#f78166",
+    marginLeft: "auto",
+    padding: "3px 7px",
+    background: "rgba(247,129,102,0.12)",
+    borderRadius: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dayAddBtnMobile: {
+    width: 32,
+    height: 32,
+    background: "transparent",
+    border: "1px solid #30363d",
+    color: "#c9d1d9",
+    borderRadius: 6,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayBodyMobile: {
+    padding: 8,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+
+  // Job card (mobile)
+  jobCardMobile: {
+    borderLeft: "4px solid",
+    borderRadius: 6,
+    padding: "10px 12px",
+    fontSize: 13,
+    lineHeight: 1.4,
+    cursor: "pointer",
+    position: "relative",
+    minHeight: 44,
+  },
+  jobCrewMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  jobMoveBtnMobile: {
+    background: "rgba(255,255,255,0.1)",
+    border: "none",
+    color: "inherit",
+    fontSize: 16,
+    lineHeight: 1,
+    padding: "6px 10px",
+    borderRadius: 4,
+    cursor: "pointer",
+    minWidth: 36,
+    minHeight: 32,
+  },
+  jobWoMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 3,
+  },
+  jobAddrMobile: {
+    fontSize: 12,
+    opacity: 0.85,
+    marginTop: 3,
+    wordBreak: "break-word",
+  },
+  jobMetaMobile: {
+    fontSize: 11,
+    fontFamily: "'JetBrains Mono', monospace",
+    opacity: 0.75,
+    marginTop: 4,
+  },
+  jobScopeMobile: {
+    fontSize: 12,
+    marginTop: 6,
+    opacity: 0.8,
+    fontStyle: "italic",
+    borderTop: "1px dashed rgba(255,255,255,0.12)",
+    paddingTop: 5,
+    lineHeight: 1.4,
+  },
+
+  // Floating action button (mobile)
+  fabStack: {
+    position: "fixed",
+    bottom: "calc(16px + env(safe-area-inset-bottom))",
+    right: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    zIndex: 50,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)",
+    color: "#0d1117",
+  },
+  fabPrimary: {
+    background: "#f78166",
+  },
+
+  // Modals (mobile — full screen)
+  modalOverlayMobile: {
+    position: "fixed",
+    inset: 0,
+    background: "#0d1117",
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "stretch",
+  },
+  modalMobile: {
+    background: "#161b22",
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    paddingTop: "env(safe-area-inset-top)",
+    paddingBottom: "env(safe-area-inset-bottom)",
+  },
 };
+
+// ── KEYFRAMES & RESPONSIVE TWEAKS ──
 
 const globalCss = `
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: 'Barlow', sans-serif; }
-  button:hover:not(:disabled) { filter: brightness(1.2); }
-  .jobCard:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  body { margin: 0; font-family: 'Barlow', sans-serif; -webkit-tap-highlight-color: transparent; }
+  button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  input, select, textarea { font-size: 16px; } /* prevent iOS zoom on focus */
+
+  /* Hover effects only on devices that support hover (not touch-primary) */
+  @media (hover: hover) {
+    button:hover:not(:disabled) { filter: brightness(1.2); }
+    .jobCard:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  }
+
+  /* Active state gives touch feedback */
+  button:active:not(:disabled) { transform: scale(0.97); }
+
   input:focus, select:focus, textarea:focus { border-color: #79c0ff !important; }
+
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: #0d1117; }
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  /* Hamburger lines */
+  button[aria-label="Open menu"] span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: #c9d1d9;
+    border-radius: 1px;
+  }
+
+  /* Drawer slide-in */
+  @keyframes slideInLeft {
+    from { transform: translateX(-100%); opacity: 0.6; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Form rows stack on mobile */
+  @media (max-width: 768px) {
+    .form-row-stack { grid-template-columns: 1fr !important; }
+  }
 `;
 
 // ── MOUNT ──

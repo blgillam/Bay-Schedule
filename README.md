@@ -2,6 +2,20 @@
 
 A self-contained, installable web app for tracking crew schedules. Works offline, installs like a native app on iPhone and Android, and comes pre-loaded with 107 jobs from your existing schedule.
 
+## What's new in v2
+
+Full mobile redesign:
+- **Hamburger menu** opens a slide-in drawer with all filters/search/view controls
+- **Week grid stacks vertically** on phones — each day is a full-width card, easy to scan and tap
+- **Floating action button** (bottom-right) for quickly adding a new job
+- **Modals go full-screen** on mobile for comfortable form filling
+- **Overflow menu** (three-dot button, top-right) for Export / Reset
+- **Larger tap targets** — buttons meet the 44pt minimum for iOS
+- **iPhone safe-area insets** respected (notch, home indicator)
+- **No hover traps** on touch devices — touches always work instantly
+
+Desktop layout is unchanged. The app detects the viewport automatically and swaps between layouts at 768px.
+
 ## Files in this folder
 
 | File | What it is |

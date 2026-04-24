@@ -1908,8 +1908,28 @@ async function storageSet(key, value) {
   }
 }
 
+// ── MOBILE DETECTION HOOK ──
+// Breakpoint at 768px: phones and small tablets get mobile UI
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const handler = e => setIsMobile(e.matches);
+    if (mq.addEventListener) mq.addEventListener("change", handler);else mq.addListener(handler); // Safari fallback
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", handler);else mq.removeListener(handler);
+    };
+  }, []);
+  return isMobile;
+}
+
 // ── MAIN APP COMPONENT ──
 function JobTracker() {
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
@@ -2125,6 +2145,7 @@ function JobTracker() {
   return /*#__PURE__*/React.createElement("div", {
     style: styles.app
   }, /*#__PURE__*/React.createElement("style", null, globalCss), /*#__PURE__*/React.createElement(Header, {
+    isMobile: isMobile,
     saveState: saveState,
     onExport: exportJson,
     onReset: resetToSeed,
@@ -2135,10 +2156,12 @@ function JobTracker() {
       crew: "BRIAN",
       flag: ""
     }),
+    onOpenDrawer: () => setDrawerOpen(true),
     totalJobs: jobs.length
   }), /*#__PURE__*/React.createElement("div", {
-    style: styles.mainLayout
-  }, /*#__PURE__*/React.createElement(Sidebar, {
+    style: isMobile ? styles.mainLayoutMobile : styles.mainLayout
+  }, !isMobile && /*#__PURE__*/React.createElement(Sidebar, {
+    isMobile: false,
     crewFilter: crewFilter,
     flagFilter: flagFilter,
     search: search,
@@ -2149,9 +2172,36 @@ function JobTracker() {
     stats: stats,
     weeksToShow: weeksToShow,
     setWeeksToShow: setWeeksToShow
+  }), isMobile && drawerOpen && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: styles.drawerBackdrop,
+    onClick: () => setDrawerOpen(false)
   }), /*#__PURE__*/React.createElement("div", {
-    style: styles.calendarWrapper
+    style: styles.drawerPanel
+  }, /*#__PURE__*/React.createElement("div", {
+    style: styles.drawerHeader
+  }, /*#__PURE__*/React.createElement("div", {
+    style: styles.drawerTitle
+  }, "FILTERS & VIEW"), /*#__PURE__*/React.createElement("button", {
+    style: styles.modalClose,
+    onClick: () => setDrawerOpen(false)
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 20
+  }))), /*#__PURE__*/React.createElement(Sidebar, {
+    isMobile: true,
+    crewFilter: crewFilter,
+    flagFilter: flagFilter,
+    search: search,
+    onSearchChange: setSearch,
+    onToggleCrew: toggleCrew,
+    onToggleFlag: toggleFlag,
+    onClearFilters: clearFilters,
+    stats: stats,
+    weeksToShow: weeksToShow,
+    setWeeksToShow: setWeeksToShow
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: isMobile ? styles.calendarWrapperMobile : styles.calendarWrapper
   }, /*#__PURE__*/React.createElement(WeekNav, {
+    isMobile: isMobile,
     viewStart: viewStart,
     weeksToShow: weeksToShow,
     onShift: shiftWeeks,
@@ -2159,6 +2209,7 @@ function JobTracker() {
     onFirstJob: jumpToFirstJob
   }), weeks.map((week, wi) => /*#__PURE__*/React.createElement(WeekBlock, {
     key: wi,
+    isMobile: isMobile,
     week: week,
     jobsByDate: jobsByDate,
     jobPassesFilters: jobPassesFilters,
@@ -2171,7 +2222,25 @@ function JobTracker() {
       crew: "BRIAN",
       flag: ""
     })
-  })))), editingJob && /*#__PURE__*/React.createElement(EditJobModal, {
+  })))), isMobile && /*#__PURE__*/React.createElement("div", {
+    style: styles.fabStack
+  }, /*#__PURE__*/React.createElement("button", {
+    style: {
+      ...styles.fab,
+      ...styles.fabPrimary
+    },
+    onClick: () => setEditingJob({
+      __new: true,
+      date: fmtDate(new Date()),
+      day: dayAbbr(new Date()),
+      crew: "BRIAN",
+      flag: ""
+    }),
+    title: "Add job"
+  }, /*#__PURE__*/React.createElement(Plus, {
+    size: 22
+  }))), editingJob && /*#__PURE__*/React.createElement(EditJobModal, {
+    isMobile: isMobile,
     job: editingJob,
     onSave: job => {
       upsertJob(job);
@@ -2183,6 +2252,7 @@ function JobTracker() {
     },
     onClose: () => setEditingJob(null)
   }), reschedulingJob && /*#__PURE__*/React.createElement(RescheduleModal, {
+    isMobile: isMobile,
     job: reschedulingJob,
     jobsByDate: jobsByDate,
     onConfirm: (newDate, reason) => {
@@ -2195,12 +2265,15 @@ function JobTracker() {
 
 // ── HEADER ──
 function Header({
+  isMobile,
   saveState,
   onExport,
   onReset,
   onNewJob,
+  onOpenDrawer,
   totalJobs
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const saveLabel = {
     idle: "",
     saving: "Saving…",
@@ -2213,6 +2286,87 @@ function Header({
     error: "#ff7b72",
     idle: "transparent"
   }[saveState];
+
+  // ── MOBILE HEADER ──
+  if (isMobile) {
+    return /*#__PURE__*/React.createElement("header", {
+      style: styles.headerMobile
+    }, /*#__PURE__*/React.createElement("button", {
+      style: styles.hamburger,
+      onClick: onOpenDrawer,
+      "aria-label": "Open menu"
+    }, /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", null)), /*#__PURE__*/React.createElement("div", {
+      style: styles.logoMobile
+    }, "MISSION", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#f78166"
+      }
+    }, "\xB7"), "DIV"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        ...styles.saveIndicatorMobile,
+        color: saveColor
+      }
+    }, saveLabel || `${totalJobs}`), /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: "relative"
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      style: styles.iconBtn,
+      onClick: () => setMenuOpen(v => !v),
+      "aria-label": "More actions"
+    }, /*#__PURE__*/React.createElement("svg", {
+      width: "18",
+      height: "18",
+      viewBox: "0 0 24 24",
+      fill: "currentColor"
+    }, /*#__PURE__*/React.createElement("circle", {
+      cx: "12",
+      cy: "5",
+      r: "2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "12",
+      cy: "12",
+      r: "2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "12",
+      cy: "19",
+      r: "2"
+    }))), menuOpen && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+      style: styles.menuBackdrop,
+      onClick: () => setMenuOpen(false)
+    }), /*#__PURE__*/React.createElement("div", {
+      style: styles.menuDropdown
+    }, /*#__PURE__*/React.createElement("button", {
+      style: styles.menuItem,
+      onClick: () => {
+        onNewJob();
+        setMenuOpen(false);
+      }
+    }, /*#__PURE__*/React.createElement(Plus, {
+      size: 14
+    }), " New job"), /*#__PURE__*/React.createElement("button", {
+      style: styles.menuItem,
+      onClick: () => {
+        onExport();
+        setMenuOpen(false);
+      }
+    }, /*#__PURE__*/React.createElement(Download, {
+      size: 14
+    }), " Export JSON"), /*#__PURE__*/React.createElement("button", {
+      style: {
+        ...styles.menuItem,
+        color: "#ff7b72"
+      },
+      onClick: () => {
+        onReset();
+        setMenuOpen(false);
+      }
+    }, /*#__PURE__*/React.createElement(RefreshCw, {
+      size: 14
+    }), " Reset to imported")))));
+  }
+
+  // ── DESKTOP HEADER ──
   return /*#__PURE__*/React.createElement("header", {
     style: styles.header
   }, /*#__PURE__*/React.createElement("div", {
@@ -2268,6 +2422,7 @@ function Header({
 
 // ── SIDEBAR ──
 function Sidebar({
+  isMobile,
   crewFilter,
   flagFilter,
   search,
@@ -2281,7 +2436,7 @@ function Sidebar({
 }) {
   const hasFilters = crewFilter.size > 0 || flagFilter.size > 0 || search.length > 0;
   return /*#__PURE__*/React.createElement("aside", {
-    style: styles.sidebar
+    style: isMobile ? styles.sidebarMobile : styles.sidebar
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.sidebarSection
   }, /*#__PURE__*/React.createElement("div", {
@@ -2291,15 +2446,15 @@ function Sidebar({
       position: "relative"
     }
   }, /*#__PURE__*/React.createElement(Search, {
-    size: 12,
+    size: isMobile ? 14 : 12,
     style: {
       position: "absolute",
-      left: 8,
-      top: 8,
+      left: 10,
+      top: isMobile ? 12 : 8,
       color: "#6e7681"
     }
   }), /*#__PURE__*/React.createElement("input", {
-    style: styles.searchInput,
+    style: isMobile ? styles.searchInputMobile : styles.searchInput,
     placeholder: "WO, address, circuit\u2026",
     value: search,
     onChange: e => onSearchChange(e.target.value)
@@ -2307,7 +2462,7 @@ function Sidebar({
     onClick: () => onSearchChange(""),
     style: styles.searchClear
   }, /*#__PURE__*/React.createElement(X, {
-    size: 12
+    size: 14
   })))), /*#__PURE__*/React.createElement("div", {
     style: styles.sidebarSection
   }, /*#__PURE__*/React.createElement("div", {
@@ -2320,6 +2475,7 @@ function Sidebar({
       onClick: () => onToggleCrew(c),
       style: {
         ...styles.filterBtn,
+        ...(isMobile ? styles.filterBtnMobile : {}),
         ...(active ? {
           background: style.border,
           color: "#0d1117",
@@ -2345,6 +2501,7 @@ function Sidebar({
       onClick: () => onToggleFlag(f),
       style: {
         ...styles.filterBtn,
+        ...(isMobile ? styles.filterBtnMobile : {}),
         ...(active ? {
           background: style.border,
           color: "#0d1117",
@@ -2354,7 +2511,7 @@ function Sidebar({
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 10,
+        fontSize: isMobile ? 12 : 10,
         marginRight: 4
       }
     }, style.icon), f);
@@ -2362,6 +2519,7 @@ function Sidebar({
     onClick: onClearFilters,
     style: {
       ...styles.filterBtn,
+      ...(isMobile ? styles.filterBtnMobile : {}),
       color: "#ff7b72",
       borderColor: "#ff7b72"
     }
@@ -2376,6 +2534,7 @@ function Sidebar({
     onClick: () => setWeeksToShow(n),
     style: {
       ...styles.filterBtn,
+      ...(isMobile ? styles.filterBtnMobile : {}),
       flex: 1,
       textAlign: "center",
       ...(weeksToShow === n ? {
@@ -2415,6 +2574,7 @@ function Sidebar({
 
 // ── WEEK NAV ──
 function WeekNav({
+  isMobile,
   viewStart,
   weeksToShow,
   onShift,
@@ -2422,6 +2582,41 @@ function WeekNav({
   onFirstJob
 }) {
   const end = addDays(viewStart, weeksToShow * 7 - 1);
+  if (isMobile) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: styles.weekNavMobile
+    }, /*#__PURE__*/React.createElement("div", {
+      style: styles.weekNavMobileRow
+    }, /*#__PURE__*/React.createElement("button", {
+      style: styles.navBtnMobile,
+      onClick: () => onShift(-1),
+      "aria-label": "Previous week"
+    }, /*#__PURE__*/React.createElement(ChevronLeft, {
+      size: 18
+    })), /*#__PURE__*/React.createElement("div", {
+      style: styles.weekRangeMobile
+    }, shortMonthDay(viewStart), " \u2014 ", shortMonthDay(end)), /*#__PURE__*/React.createElement("button", {
+      style: styles.navBtnMobile,
+      onClick: () => onShift(1),
+      "aria-label": "Next week"
+    }, /*#__PURE__*/React.createElement(ChevronRight, {
+      size: 18
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: styles.weekNavMobileRow
+    }, /*#__PURE__*/React.createElement("button", {
+      style: {
+        ...styles.navBtnMobile,
+        flex: 1
+      },
+      onClick: onToday
+    }, "Today"), /*#__PURE__*/React.createElement("button", {
+      style: {
+        ...styles.navBtnMobile,
+        flex: 1
+      },
+      onClick: onFirstJob
+    }, "Jump to data")));
+  }
   return /*#__PURE__*/React.createElement("div", {
     style: styles.weekNav
   }, /*#__PURE__*/React.createElement("button", {
@@ -2447,6 +2642,7 @@ function WeekNav({
 
 // ── WEEK BLOCK ──
 function WeekBlock({
+  isMobile,
   week,
   jobsByDate,
   jobPassesFilters,
@@ -2455,12 +2651,16 @@ function WeekBlock({
   onAddJobAt
 }) {
   const weekLabel = `WEEK OF ${shortMonthDay(week.start).toUpperCase()}`;
+
+  // Mobile: skip days that have no jobs and no active filter; or always show but compactly?
+  // Decision: always show all 7 days so the schedule structure is clear, but stack vertically.
+
   return /*#__PURE__*/React.createElement("div", {
     style: styles.weekBlock
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.weekLabel
   }, weekLabel), /*#__PURE__*/React.createElement("div", {
-    style: styles.weekGrid
+    style: isMobile ? styles.weekStack : styles.weekGrid
   }, week.days.map(d => {
     const dateStr = fmtDate(d);
     const dayJobs = (jobsByDate[dateStr] || []).filter(jobPassesFilters);
@@ -2471,26 +2671,30 @@ function WeekBlock({
     return /*#__PURE__*/React.createElement("div", {
       key: dateStr,
       style: {
-        ...styles.dayCol,
+        ...(isMobile ? styles.dayColMobile : styles.dayCol),
         ...(isWeekend ? styles.dayColWeekend : {}),
         ...(isToday ? styles.dayColToday : {})
       }
     }, /*#__PURE__*/React.createElement("div", {
-      style: styles.dayHeader
+      style: isMobile ? styles.dayHeaderMobile : styles.dayHeader
     }, /*#__PURE__*/React.createElement("div", {
-      style: styles.dayName
+      style: isMobile ? styles.dayNameMobile : styles.dayName
     }, dayAbbr(d)), /*#__PURE__*/React.createElement("div", {
-      style: styles.dayDate
-    }, d.getMonth() + 1, "/", d.getDate()), /*#__PURE__*/React.createElement("button", {
-      style: styles.dayAddBtn,
+      style: isMobile ? styles.dayDateMobile : styles.dayDate
+    }, d.getMonth() + 1, "/", d.getDate()), isMobile && dayJobs.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: styles.dayCountMobile
+    }, dayJobs.length, " ", dayJobs.length === 1 ? "job" : "jobs"), /*#__PURE__*/React.createElement("button", {
+      style: isMobile ? styles.dayAddBtnMobile : styles.dayAddBtn,
       onClick: () => onAddJobAt(dateStr),
-      title: "Add job on this day"
+      title: "Add job on this day",
+      "aria-label": "Add job"
     }, /*#__PURE__*/React.createElement(Plus, {
-      size: 11
+      size: isMobile ? 16 : 11
     }))), /*#__PURE__*/React.createElement("div", {
-      style: styles.dayBody
+      style: isMobile ? styles.dayBodyMobile : styles.dayBody
     }, dayJobs.map((j, ji) => /*#__PURE__*/React.createElement(JobCard, {
       key: (j._id || j.wo) + "_" + ji,
+      isMobile: isMobile,
       job: j,
       onEdit: () => onEditJob(j),
       onReschedule: () => onRescheduleJob(j)
@@ -2504,6 +2708,7 @@ function WeekBlock({
 
 // ── JOB CARD ──
 function JobCard({
+  isMobile,
   job,
   onEdit,
   onReschedule
@@ -2518,19 +2723,19 @@ function JobCard({
   const isLite = job.flag === "CANCELLED" || job.flag === "HOLIDAY" || job.crew === "ALL OFF";
   return /*#__PURE__*/React.createElement("div", {
     style: {
-      ...styles.jobCard,
+      ...(isMobile ? styles.jobCardMobile : styles.jobCard),
       background: cardBg,
       borderLeftColor: cardBorder,
       color: cardText,
       opacity: isLite ? 0.75 : 1
     },
     onClick: onEdit,
-    title: "Click to edit"
+    title: "Tap to edit"
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.jobCardTop
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      ...styles.jobCrew,
+      ...(isMobile ? styles.jobCrewMobile : styles.jobCrew),
       color: cardText
     }
   }, flagStyle && /*#__PURE__*/React.createElement("span", {
@@ -2538,21 +2743,22 @@ function JobCard({
       marginRight: 4
     }
   }, flagStyle.icon), job.flag || job.crew || "—"), /*#__PURE__*/React.createElement("button", {
-    style: styles.jobMoveBtn,
+    style: isMobile ? styles.jobMoveBtnMobile : styles.jobMoveBtn,
     onClick: e => {
       e.stopPropagation();
       onReschedule();
     },
-    title: "Reschedule"
+    title: "Reschedule",
+    "aria-label": "Reschedule"
   }, "\u2194")), job.wo && /*#__PURE__*/React.createElement("div", {
-    style: styles.jobWo
+    style: isMobile ? styles.jobWoMobile : styles.jobWo
   }, "WO ", job.wo), job.addr && /*#__PURE__*/React.createElement("div", {
-    style: styles.jobAddr
+    style: isMobile ? styles.jobAddrMobile : styles.jobAddr
   }, job.addr), job.outage && /*#__PURE__*/React.createElement("div", {
-    style: styles.jobMeta
+    style: isMobile ? styles.jobMetaMobile : styles.jobMeta
   }, "\u23F1 ", job.outage), job.scope && /*#__PURE__*/React.createElement("div", {
-    style: styles.jobScope
-  }, truncate(job.scope, 80)), job._rescheduleHistory && job._rescheduleHistory.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: isMobile ? styles.jobScopeMobile : styles.jobScope
+  }, truncate(job.scope, isMobile ? 120 : 80)), job._rescheduleHistory && job._rescheduleHistory.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: styles.jobRescheduled
   }, "\u2194 moved ", job._rescheduleHistory.length, "\xD7"));
 }
@@ -2563,6 +2769,7 @@ function truncate(s, n) {
 
 // ── EDIT MODAL ──
 function EditJobModal({
+  isMobile,
   job,
   onSave,
   onDelete,
@@ -2619,10 +2826,10 @@ function EditJobModal({
     }
   }
   return /*#__PURE__*/React.createElement("div", {
-    style: styles.modalOverlay,
+    style: isMobile ? styles.modalOverlayMobile : styles.modalOverlay,
     onClick: onClose
   }, /*#__PURE__*/React.createElement("div", {
-    style: styles.modal,
+    style: isMobile ? styles.modalMobile : styles.modal,
     onClick: e => e.stopPropagation()
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.modalHeader
@@ -2634,7 +2841,7 @@ function EditJobModal({
     style: styles.modalClose,
     onClick: onClose
   }, /*#__PURE__*/React.createElement(X, {
-    size: 18
+    size: 20
   }))), /*#__PURE__*/React.createElement("div", {
     style: styles.modalBody
   }, error && /*#__PURE__*/React.createElement("div", {
@@ -2644,7 +2851,8 @@ function EditJobModal({
   }), " ", error), /*#__PURE__*/React.createElement("div", {
     style: styles.formSection
   }, "Scheduling"), /*#__PURE__*/React.createElement("div", {
-    style: styles.formRow
+    style: styles.formRow,
+    className: "form-row-stack"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Date (MM/DD/YY)"
   }, /*#__PURE__*/React.createElement("input", {
@@ -2664,7 +2872,8 @@ function EditJobModal({
   }, c || "—")), /*#__PURE__*/React.createElement("option", {
     value: ""
   }, "\u2014 Unassigned \u2014")))), /*#__PURE__*/React.createElement("div", {
-    style: styles.formRow
+    style: styles.formRow,
+    className: "form-row-stack"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Status / Flag"
   }, /*#__PURE__*/React.createElement("select", {
@@ -2722,7 +2931,8 @@ function EditJobModal({
   })), /*#__PURE__*/React.createElement("div", {
     style: styles.formSection
   }, "References"), /*#__PURE__*/React.createElement("div", {
-    style: styles.formRow
+    style: styles.formRow,
+    className: "form-row-stack"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Traffic Control"
   }, /*#__PURE__*/React.createElement("input", {
@@ -2738,7 +2948,8 @@ function EditJobModal({
     onChange: e => update("circuit", e.target.value),
     placeholder: "26-0033512"
   }))), /*#__PURE__*/React.createElement("div", {
-    style: styles.formRow
+    style: styles.formRow,
+    className: "form-row-stack"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Notification #"
   }, /*#__PURE__*/React.createElement("input", {
@@ -2814,6 +3025,7 @@ function Field({
 
 // ── RESCHEDULE MODAL ──
 function RescheduleModal({
+  isMobile,
   job,
   jobsByDate,
   onConfirm,
@@ -3570,18 +3782,436 @@ const styles = {
     color: "#f78166",
     fontSize: 14,
     lineHeight: 0.3
+  },
+  // ═══════════════════════════════════════════════════
+  // ── MOBILE-SPECIFIC STYLES ──
+  // ═══════════════════════════════════════════════════
+
+  // Header (mobile)
+  headerMobile: {
+    background: "#161b22",
+    borderBottom: "1px solid #30363d",
+    padding: "10px 12px",
+    paddingTop: "calc(10px + env(safe-area-inset-top))",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    minHeight: 52
+  },
+  logoMobile: {
+    fontFamily: "'Barlow Condensed', sans-serif",
+    fontWeight: 800,
+    fontSize: 15,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#e6edf3",
+    flex: 1
+  },
+  saveIndicatorMobile: {
+    fontSize: 10,
+    fontFamily: "'JetBrains Mono', monospace",
+    fontWeight: 600,
+    letterSpacing: 0.5,
+    whiteSpace: "nowrap",
+    minWidth: 28,
+    textAlign: "right"
+  },
+  hamburger: {
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    width: 40,
+    height: 40,
+    padding: "10px 8px",
+    background: "transparent",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    cursor: "pointer"
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    padding: 0,
+    background: "transparent",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    color: "#c9d1d9",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  menuBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "transparent",
+    zIndex: 200
+  },
+  menuDropdown: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    right: 0,
+    background: "#161b22",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    minWidth: 180,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    zIndex: 201,
+    display: "flex",
+    flexDirection: "column",
+    padding: 4
+  },
+  menuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    background: "transparent",
+    border: "none",
+    color: "#c9d1d9",
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 500,
+    letterSpacing: 0.5,
+    padding: "10px 12px",
+    textAlign: "left",
+    cursor: "pointer",
+    borderRadius: 4,
+    textTransform: "uppercase"
+  },
+  // Main layout (mobile)
+  mainLayoutMobile: {
+    display: "block",
+    minHeight: "calc(100vh - 52px)"
+  },
+  calendarWrapperMobile: {
+    padding: "12px 12px 80px 12px",
+    // extra bottom for FAB
+    maxWidth: "100%"
+  },
+  // Drawer (mobile sidebar)
+  drawerBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.65)",
+    backdropFilter: "blur(3px)",
+    zIndex: 300
+  },
+  drawerPanel: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: "82%",
+    maxWidth: 320,
+    background: "#161b22",
+    borderRight: "1px solid #30363d",
+    zIndex: 301,
+    display: "flex",
+    flexDirection: "column",
+    paddingTop: "env(safe-area-inset-top)",
+    paddingBottom: "env(safe-area-inset-bottom)",
+    overflowY: "auto",
+    animation: "slideInLeft 0.22s ease-out"
+  },
+  drawerHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 14px",
+    borderBottom: "1px solid #30363d",
+    background: "#1c2128",
+    position: "sticky",
+    top: 0,
+    zIndex: 2
+  },
+  drawerTitle: {
+    fontFamily: "'Barlow Condensed', sans-serif",
+    fontSize: 14,
+    fontWeight: 700,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    color: "#e6edf3"
+  },
+  sidebarMobile: {
+    width: "100%",
+    padding: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 18
+  },
+  searchInputMobile: {
+    width: "100%",
+    background: "#0d1117",
+    border: "1px solid #30363d",
+    borderRadius: 6,
+    color: "#e6edf3",
+    padding: "10px 10px 10px 32px",
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', monospace",
+    outline: "none"
+  },
+  filterBtnMobile: {
+    fontSize: 13,
+    padding: "10px 12px",
+    minHeight: 40
+  },
+  // Week nav (mobile)
+  weekNavMobile: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottom: "1px solid #30363d"
+  },
+  weekNavMobileRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8
+  },
+  navBtnMobile: {
+    background: "transparent",
+    border: "1px solid #30363d",
+    color: "#c9d1d9",
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 500,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    padding: "10px 12px",
+    borderRadius: 6,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minHeight: 40,
+    minWidth: 40
+  },
+  weekRangeMobile: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "'Barlow Condensed', sans-serif",
+    fontSize: 14,
+    fontWeight: 700,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#c9d1d9"
+  },
+  // Week stack (mobile)
+  weekStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+  // Day col (mobile)
+  dayColMobile: {
+    background: "#161b22",
+    border: "1px solid #30363d",
+    borderRadius: 8,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column"
+  },
+  dayHeaderMobile: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 12px",
+    borderBottom: "1px solid #30363d",
+    background: "#1c2128"
+  },
+  dayNameMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: "#c9d1d9"
+  },
+  dayDateMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    color: "#8b949e"
+  },
+  dayCountMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 10,
+    color: "#f78166",
+    marginLeft: "auto",
+    padding: "3px 7px",
+    background: "rgba(247,129,102,0.12)",
+    borderRadius: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5
+  },
+  dayAddBtnMobile: {
+    width: 32,
+    height: 32,
+    background: "transparent",
+    border: "1px solid #30363d",
+    color: "#c9d1d9",
+    borderRadius: 6,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  dayBodyMobile: {
+    padding: 8,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
+  },
+  // Job card (mobile)
+  jobCardMobile: {
+    borderLeft: "4px solid",
+    borderRadius: 6,
+    padding: "10px 12px",
+    fontSize: 13,
+    lineHeight: 1.4,
+    cursor: "pointer",
+    position: "relative",
+    minHeight: 44
+  },
+  jobCrewMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 1,
+    textTransform: "uppercase"
+  },
+  jobMoveBtnMobile: {
+    background: "rgba(255,255,255,0.1)",
+    border: "none",
+    color: "inherit",
+    fontSize: 16,
+    lineHeight: 1,
+    padding: "6px 10px",
+    borderRadius: 4,
+    cursor: "pointer",
+    minWidth: 36,
+    minHeight: 32
+  },
+  jobWoMobile: {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 12,
+    fontWeight: 600,
+    marginTop: 3
+  },
+  jobAddrMobile: {
+    fontSize: 12,
+    opacity: 0.85,
+    marginTop: 3,
+    wordBreak: "break-word"
+  },
+  jobMetaMobile: {
+    fontSize: 11,
+    fontFamily: "'JetBrains Mono', monospace",
+    opacity: 0.75,
+    marginTop: 4
+  },
+  jobScopeMobile: {
+    fontSize: 12,
+    marginTop: 6,
+    opacity: 0.8,
+    fontStyle: "italic",
+    borderTop: "1px dashed rgba(255,255,255,0.12)",
+    paddingTop: 5,
+    lineHeight: 1.4
+  },
+  // Floating action button (mobile)
+  fabStack: {
+    position: "fixed",
+    bottom: "calc(16px + env(safe-area-inset-bottom))",
+    right: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    zIndex: 50
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    border: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)",
+    color: "#0d1117"
+  },
+  fabPrimary: {
+    background: "#f78166"
+  },
+  // Modals (mobile — full screen)
+  modalOverlayMobile: {
+    position: "fixed",
+    inset: 0,
+    background: "#0d1117",
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "stretch"
+  },
+  modalMobile: {
+    background: "#161b22",
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    paddingTop: "env(safe-area-inset-top)",
+    paddingBottom: "env(safe-area-inset-bottom)"
   }
 };
+
+// ── KEYFRAMES & RESPONSIVE TWEAKS ──
+
 const globalCss = `
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: 'Barlow', sans-serif; }
-  button:hover:not(:disabled) { filter: brightness(1.2); }
-  .jobCard:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  body { margin: 0; font-family: 'Barlow', sans-serif; -webkit-tap-highlight-color: transparent; }
+  button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  input, select, textarea { font-size: 16px; } /* prevent iOS zoom on focus */
+
+  /* Hover effects only on devices that support hover (not touch-primary) */
+  @media (hover: hover) {
+    button:hover:not(:disabled) { filter: brightness(1.2); }
+    .jobCard:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  }
+
+  /* Active state gives touch feedback */
+  button:active:not(:disabled) { transform: scale(0.97); }
+
   input:focus, select:focus, textarea:focus { border-color: #79c0ff !important; }
+
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: #0d1117; }
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+  /* Hamburger lines */
+  button[aria-label="Open menu"] span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: #c9d1d9;
+    border-radius: 1px;
+  }
+
+  /* Drawer slide-in */
+  @keyframes slideInLeft {
+    from { transform: translateX(-100%); opacity: 0.6; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Form rows stack on mobile */
+  @media (max-width: 768px) {
+    .form-row-stack { grid-template-columns: 1fr !important; }
+  }
 `;
 
 // ── MOUNT ──
