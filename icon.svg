@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+  <!-- Border accent -->
+  <rect x="8" y="8" width="496" height="496" rx="88" ry="88" fill="none" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Calendar grid outline -->
+  <rect x="96" y="160" width="320" height="272" rx="20" ry="20" fill="none" stroke="#f78166" stroke-width="8"/>
+  <!-- Top bar -->
+  <rect x="96" y="160" width="320" height="48" rx="20" ry="20" fill="#f78166"/>
+  <rect x="96" y="188" width="320" height="20" fill="#f78166"/>
+
+  <!-- Day cells -->
+  <g fill="#30363d">
+    <rect x="120" y="232" width="56" height="40" rx="6"/>
+    <rect x="192" y="232" width="56" height="40" rx="6"/>
+    <rect x="264" y="232" width="56" height="40" rx="6"/>
+    <rect x="336" y="232" width="56" height="40" rx="6"/>
+    <rect x="120" y="292" width="56" height="40" rx="6"/>
+    <rect x="264" y="292" width="56" height="40" rx="6"/>
+    <rect x="336" y="292" width="56" height="40" rx="6"/>
+    <rect x="120" y="352" width="56" height="40" rx="6"/>
+    <rect x="192" y="352" width="56" height="40" rx="6"/>
+    <rect x="336" y="352" width="56" height="40" rx="6"/>
+  </g>
+  <!-- Active cells (crew colors) -->
+  <rect x="192" y="292" width="56" height="40" rx="6" fill="#3fb950"/>
+  <rect x="264" y="352" width="56" height="40" rx="6" fill="#79c0ff"/>
+
+  <!-- "M" mark at top -->
+  <text x="256" y="130" font-family="Arial Black, sans-serif" font-weight="900" font-size="92" fill="#e6edf3" text-anchor="middle" letter-spacing="6">MD</text>
+</svg>
